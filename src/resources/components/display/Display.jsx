@@ -54,7 +54,11 @@ export default class Display extends Component {
     // this.bufferLength = analyser.frequencyBinCount;
 
     this.dataArray = new Uint8Array(this.bufferLength);
-    requestAnimationFrame(() => { this.update() });
+    this.frame = requestAnimationFrame(this.update);
+  }
+
+  componentWillUnmount() {
+    cancelAnimationFrame(this.frame);
   }
 
   getLabel = () => {
@@ -140,7 +144,7 @@ export default class Display extends Component {
 
     context.lineTo(WIDTH, HEIGHT / 2);
     context.stroke();
-    requestAnimationFrame(() => { this.update() });
+    this.frame = requestAnimationFrame(this.update);
   }
 
   // update = () => {

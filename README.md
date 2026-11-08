@@ -4,16 +4,21 @@
 
 A *very* lightweight version of Teenage Engineering's OP-1 Synthesizer built with React and Redux
 
+Live at **[aryamans.me/op1-synth](https://aryamans.me/op1-synth/)**.
+
 ## Running
 
 Requires Node 20.19+ (or 22.12+).
 
 ```bash
 npm install
-npm run dev      # dev server at http://localhost:5173
+npm run dev      # dev server at http://localhost:5173/op1-synth/
 npm run build    # production build into dist/
 npm run preview  # serve the production build
 ```
+
+Pushing to `master` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
+Page views go to GoatCounter (aryamans.goatcounter.com), on the live host only.
 
 ## Controls
 

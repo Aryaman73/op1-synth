@@ -1,5 +1,6 @@
-import React, { Component, PropTypes } from 'react';
-import Knob from '../knob/Knob.js';
+import React, { Component } from 'react';
+import PropTypes from 'prop-types';
+import Knob from '../knob/Knob.jsx';
 
 export default class Parameter extends Component {
    static propTypes = {

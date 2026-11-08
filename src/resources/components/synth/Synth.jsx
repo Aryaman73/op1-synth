@@ -1,13 +1,14 @@
-import React, { Component, PropTypes } from 'react';
+import React, { Component } from 'react';
+import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
 import keyboardActions from '../../redux/keyboard/actions.js';
-import Speaker from '../speaker/Speaker.js';
-import Display from '../display/Display.js';
-import Volume from '../volume/Volume.js';
-import Button from '../button/Button.js';
-import ButtonRow from '../button-row/ButtonRow.js';
-import Keyboard from '../keyboard/Keyboard.js';
-import Parameter from '../parameter/Parameter.js';
+import Speaker from '../speaker/Speaker.jsx';
+import Display from '../display/Display.jsx';
+import Volume from '../volume/Volume.jsx';
+import Button from '../button/Button.jsx';
+import ButtonRow from '../button-row/ButtonRow.jsx';
+import Keyboard from '../keyboard/Keyboard.jsx';
+import Parameter from '../parameter/Parameter.jsx';
 import SimpleReverb from '../../utils/SimpleReverb.js';
 import { makeDistortionCurve } from '../../utils/Distortion.js';
 
@@ -38,9 +39,9 @@ class Synth extends Component {
     this.oscCodes = [49, 50, 51, 52];
 
     this.arrowCodes = [53, 54]; // [ left arrow, right arrow ]
-  }
 
-  componentWillMount() {
+    // Audio graph is built up front so children (e.g. Display) get the
+    // analyser on their first render.
     const AudioContext = window.AudioContext || window.webkitAudioContext;
 
     const context = new AudioContext();
@@ -52,8 +53,10 @@ class Synth extends Component {
     masterVolume.connect(analyser);
     analyser.connect(context.destination);
 
-    this.setState({ context, masterVolume, analyser });
+    Object.assign(this.state, { context, masterVolume, analyser });
+  }
 
+  componentDidMount() {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
   }
@@ -67,6 +70,11 @@ class Synth extends Component {
     const index = this.keyCodes.indexOf(e.keyCode),
       oscIndex = this.oscCodes.indexOf(e.keyCode),
       arrowIndex = this.arrowCodes.indexOf(e.keyCode);
+
+    // Browsers start the AudioContext suspended until a user gesture.
+    if (this.state.context.state === 'suspended') {
+      this.state.context.resume();
+    }
 
     if (index > -1 && !this.props.keys.getIn([index.toString(), 'isPressed'])) {
       this.playSound(this.props.keys.getIn([index.toString(), 'freq']));

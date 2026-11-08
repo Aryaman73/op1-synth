@@ -4,6 +4,25 @@
 
 A *very* lightweight version of Teenage Engineering's OP-1 Synthesizer built with React and Redux
 
+## Running
+
+Requires Node 20.19+ (or 22.12+).
+
+```bash
+npm install
+npm run dev      # dev server at http://localhost:5173
+npm run build    # production build into dist/
+npm run preview  # serve the production build
+```
+
+## Controls
+
+- `A W S E D F G Y H U J K O L P ; [ ' Z ] X \ C` – play notes
+- `1`–`4` – toggle Sine / Saw / Triangle / Square oscillators (they stack)
+- `5` / `6` – octave down / up (press again to reset)
+
+Click the page or press a key first: browsers keep audio muted until you interact with the page.
+
 ## Features
 - Four different oscillator types (Sine, Sawtooth, Triangle, Square)
 - Keyboard functionality

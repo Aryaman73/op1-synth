@@ -1,5 +1,6 @@
-import React, { Component, PropTypes } from 'react';
-import Button from '../button/Button.js';
+import React, { Component } from 'react';
+import PropTypes from 'prop-types';
+import Button from '../button/Button.jsx';
 
 export default class ButtonRow extends Component {
   render() {

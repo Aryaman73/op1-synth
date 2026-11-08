@@ -1,6 +1,4 @@
 import React, { Component } from 'react';
-import Radium from 'radium';
-import _ from 'lodash';
 
 class Button extends Component {
   static defaultProps = {
@@ -50,4 +48,4 @@ class Button extends Component {
    }
 }
 
-export default Radium(Button);
+export default Button;

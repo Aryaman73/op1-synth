@@ -1,4 +1,5 @@
-import React, { Component, PropTypes } from 'react';
+import React, { Component } from 'react';
+import PropTypes from 'prop-types';
 
 export default class Knob extends Component {
    static propTypes = {
@@ -23,6 +24,8 @@ export default class Knob extends Component {
    constructor() {
       super();
 
+      this.knobRef = React.createRef();
+
       this.state = {
          rotate: 0,
          mouseDown: false,
@@ -44,7 +47,7 @@ export default class Knob extends Component {
    }
 
    onMouseDown = (e) => {
-      let knob = this.refs.knob,
+      let knob = this.knobRef.current,
          knobRect = knob.getBoundingClientRect(),
          originX = knobRect.left + 21,
          originY = knobRect.top + 21,
@@ -149,14 +152,10 @@ export default class Knob extends Component {
                MozBorderRadius: '50%',
                WebkitBorderRadius: '50%',
                borderRadius: '50%',
-               cursor: '-webkit-grab',
+               cursor: this.state.mouseDown ? 'grabbing' : 'grab',
 
                WebkitTransform: `rotate(${this.state.rotate}deg)`,
                transform: `rotate(${this.state.rotate}deg)`,
-
-               ':active': {
-                  cursor: '-webkit-grabbing',
-               },
             },
             indent: {
                position: 'absolute',
@@ -173,7 +172,7 @@ export default class Knob extends Component {
 
       return (
          <div
-            ref="knob"
+            ref={ this.knobRef }
             style={ style.knob }
             onMouseDown={ this.onMouseDown }>
             <div style={ style.indent }></div>

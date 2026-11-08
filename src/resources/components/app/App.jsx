@@ -1,7 +1,5 @@
 import React, { Component } from 'react';
-import { Link } from 'react-router';
-import Synth from '../synth/Synth.js';
-import Radium from 'radium';
+import Synth from '../synth/Synth.jsx';
 
 class App extends Component {
    style = {
@@ -26,4 +24,4 @@ class App extends Component {
    }
 }
 
-export default Radium(App);
+export default App;

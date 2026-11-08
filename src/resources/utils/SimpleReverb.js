@@ -136,4 +136,4 @@ SimpleReverb.prototype = Object.create(null, {
  * Exports.
  */
 
-module.exports = SimpleReverb;
+export default SimpleReverb;

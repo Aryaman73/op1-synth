@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import Knob from '../knob/Knob.js';
+import Knob from '../knob/Knob.jsx';
 
 export default class Volume extends Component {
    style = {

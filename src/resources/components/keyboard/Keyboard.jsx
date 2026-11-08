@@ -1,9 +1,10 @@
-import React, { Component, PropTypes } from 'react';
-import Key from './Key.js';
+import React, { Component } from 'react';
+import PropTypes from 'prop-types';
+import Key from './Key.jsx';
 
 export default class Keyboard extends Component {
   renderBlackKeys = () => {
-    return this.props.keys.map((key, index) => {
+    return this.props.keys.valueSeq().map((key, index) => {
       const props = key.toJS();
 
       if (props.type === 'black') {
@@ -18,7 +19,7 @@ export default class Keyboard extends Component {
   };
 
   renderWhiteKeys = () => {
-    return this.props.keys.map((key, index) => {
+    return this.props.keys.valueSeq().map((key, index) => {
       const props = key.toJS();
 
       if (props.type === 'white') {

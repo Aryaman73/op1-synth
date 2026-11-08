@@ -19,7 +19,7 @@ npm run preview  # serve the production build
 
 - `A W S E D F G Y H U J K O L P ; [ ' Z ] X \ C` – play notes
 - `1`–`4` – toggle Sine / Saw / Triangle / Square oscillators (they stack)
-- `5` / `6` – octave down / up (press again to reset)
+- `5` / `6` – octave down / up; press the opposite one to return to normal. The on-screen `1`–`4`, `<` and `>` buttons can also be clicked.
 - Knobs (click and drag):
   - small white – master volume
   - blue – filter cutoff

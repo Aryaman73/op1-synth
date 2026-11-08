@@ -38,7 +38,6 @@ class Synth extends Component {
       oscKeys: [49],
       arrowKey: 0,
       context: {},
-      oscillators: {},
       mousePressed: false,
       masterVolume: {},
     };
@@ -54,6 +53,9 @@ class Synth extends Component {
     this.oscCodes = [49, 50, 51, 52];
 
     this.arrowCodes = [53, 54]; // [ left arrow, right arrow ]
+
+    // Sounding notes, keyed by piano key index: { oscillators, noteGain }.
+    this.voices = {};
 
     // Audio graph is built up front so children (e.g. Display) get the
     // analyser on their first render.
@@ -141,18 +143,56 @@ class Synth extends Component {
     window.removeEventListener('keyup', this.onKeyUp);
   }
 
+  // Browsers start the AudioContext suspended until a user gesture.
+  resumeAudio = () => {
+    if (this.state.context.state === 'suspended') {
+      this.state.context.resume();
+    }
+  };
+
+  // Toggle an oscillator (1-4) on/off; at least one always stays on.
+  toggleOscillator = (oscKey) => {
+    this.setState(({ oscKeys }) => {
+      if (oscKeys.indexOf(oscKey) > -1) {
+        return oscKeys.length > 1 ? { oscKeys: oscKeys.filter(k => k !== oscKey) } : null;
+      }
+
+      return { oscKeys: [...oscKeys, oscKey] };
+    });
+  };
+
+  // Step the octave with < / >: from normal go down/up one; from either
+  // shifted octave, pressing the opposite direction returns to normal.
+  changeOctave = (arrowKey) => {
+    this.setState(state => {
+      if (state.arrowKey === arrowKey) {
+        return null;
+      }
+
+      return { arrowKey: state.arrowKey === 0 ? arrowKey : 0 };
+    });
+  };
+
+  // On-screen button clicks (1-4, <, >) behave like their keyboard shortcuts.
+  onButtonPress = (keyCode) => {
+    this.resumeAudio();
+
+    if (this.oscCodes.indexOf(keyCode) > -1) {
+      this.toggleOscillator(keyCode);
+    } else if (this.arrowCodes.indexOf(keyCode) > -1) {
+      this.changeOctave(keyCode);
+    }
+  };
+
   onKeyDown = (e) => {
     const index = this.keyCodes.indexOf(e.keyCode),
       oscIndex = this.oscCodes.indexOf(e.keyCode),
       arrowIndex = this.arrowCodes.indexOf(e.keyCode);
 
-    // Browsers start the AudioContext suspended until a user gesture.
-    if (this.state.context.state === 'suspended') {
-      this.state.context.resume();
-    }
+    this.resumeAudio();
 
     if (index > -1 && !this.props.keys.getIn([index.toString(), 'isPressed'])) {
-      this.playSound(this.props.keys.getIn([index.toString(), 'freq']));
+      this.playSound(index, this.props.keys.getIn([index.toString(), 'freq']));
 
       this.props.dispatch(
         keyboardActions.keyDown(index.toString())
@@ -160,33 +200,11 @@ class Synth extends Component {
     }
 
     if (oscIndex > -1) {
-      let updatedOscKeys = this.state.oscKeys;
-
-      if (this.state.oscKeys.indexOf(e.keyCode) > -1) {
-        // remove osc key
-        if (this.state.oscKeys.length > 1) {
-          updatedOscKeys = this.state.oscKeys.filter(k => k !== e.keyCode);
-        }
-      } else {
-        // add osc key
-        updatedOscKeys.push(e.keyCode);
-      }
-
-      this.setState({
-        oscKeys: updatedOscKeys,
-      });
+      this.toggleOscillator(e.keyCode);
     }
 
-    if (arrowIndex > -1 && this.state.arrowKey !== e.keyCode) {
-      if (this.state.arrowKey === 0) {
-        this.setState({
-          arrowKey: e.keyCode
-        });
-      } else {
-        this.setState({
-          arrowKey: 0
-        });
-      }
+    if (arrowIndex > -1) {
+      this.changeOctave(e.keyCode);
     }
   };
 
@@ -194,7 +212,7 @@ class Synth extends Component {
     const index = this.keyCodes.indexOf(e.keyCode);
 
     if (index > -1) {
-      this.stopSound(this.props.keys.getIn([index.toString(), 'freq']));
+      this.stopSound(index);
 
       this.props.dispatch(
         keyboardActions.keyUp(index.toString())
@@ -202,15 +220,22 @@ class Synth extends Component {
     }
   };
 
-  playSound = (frequency) => {
-    let { context, oscillators, oscKeys, arrowKey } = this.state,
-      { voiceMix } = this.audio,
-      octave = 1;
+  // Start one oscillator per active waveform for piano key `index`. The
+  // oscillators are stored under that key so the release always stops
+  // exactly what was started, even if the oscillator or octave settings
+  // change while the note is held.
+  playSound = (index, frequency) => {
+    const { context, oscKeys, arrowKey } = this.state;
+    const { voiceMix } = this.audio;
+    const octave = arrowKey === 53 ? 0.5 : arrowKey === 54 ? 2 : 1;
 
-    // Keep stacked oscillators from summing too hot.
-    voiceMix.gain.value = 0.3 / oscKeys.length;
+    // Per-note level, so stacking oscillators doesn't sum too hot and
+    // later setting changes don't alter notes already sounding.
+    const noteGain = context.createGain();
+    noteGain.gain.value = 0.3 / oscKeys.length;
+    noteGain.connect(voiceMix);
 
-    oscKeys.forEach(oscKey => {
+    const oscillators = oscKeys.map(oscKey => {
       const osc = context.createOscillator();
 
       // custom periodic wave
@@ -220,9 +245,6 @@ class Synth extends Component {
       // osc.setPeriodicWave(customWaveform);
 
       switch (oscKey) {
-        case 49:
-          osc.type = 'sine';
-          break;
         case 50:
           osc.type = 'sawtooth';
           break;
@@ -237,48 +259,26 @@ class Synth extends Component {
           break;
       }
 
-      switch (arrowKey) {
-        case 53:
-          octave = 0.5;
-          break;
-        case 54:
-          octave = 2;
-          break;
-        default:
-          octave = 1;
-          break;
-      }
-
       osc.frequency.value = frequency * octave;
-      oscillators[frequency * octave * oscKey] = osc;
+      osc.connect(noteGain);
+      osc.start();
 
-      // Into the shared effects chain (see constructor).
-      osc.connect(voiceMix);
-      osc.start(0);
+      return osc;
     });
 
-    this.setState({ oscillators });
+    this.voices[index] = { oscillators, noteGain };
   };
 
-  stopSound = (frequency) => {
-    let { oscillators, arrowKey, oscKeys } = this.state,
-      octave = 1;
+  stopSound = (index) => {
+    const voice = this.voices[index];
 
-    switch (arrowKey) {
-      case 53:
-        octave = 0.5;
-        break;
-      case 54:
-        octave = 2;
-        break;
-      default:
-        octave = 1;
-        break;
+    if (!voice) {
+      return;
     }
 
-    oscKeys.forEach(oscKey => {
-      oscillators[frequency * octave * oscKey].stop(0);
-    });
+    voice.oscillators.forEach(osc => osc.stop());
+    voice.noteGain.disconnect();
+    delete this.voices[index];
   };
 
   onKeyChange = (pressedKeys) => {
@@ -409,6 +409,7 @@ class Synth extends Component {
           <ButtonRow
             oscKeys={ this.state.oscKeys }
             arrowKey={ this.state.arrowKey }
+            onPress={ this.onButtonPress }
           />
 
           <div style={ style.controlGroup }>

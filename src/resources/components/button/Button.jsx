@@ -16,7 +16,7 @@ class Button extends Component {
          width: 62,
          height: 62,
          float: 'left',
-         cursor: 'pointer',
+         cursor: this.props.onClick ? 'pointer' : 'default',
          boxSizing: 'border-box',
          borderBottom: this.props.borderBottom ? '3px solid #000' : 'none',
          borderRight: this.props.borderRight ? '3px solid #000' : 'none',
@@ -37,7 +37,7 @@ class Button extends Component {
      };
 
      return (
-         <div style={ style.wrapper }>
+         <div style={ style.wrapper } onClick={ this.props.onClick }>
             <div style={ style.button }>
                <div style={ this.props.style }>
                	{ this.props.children }

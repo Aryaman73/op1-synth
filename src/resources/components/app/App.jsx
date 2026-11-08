@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import Synth from '../synth/Synth.jsx';
 import Instructions from '../instructions/Instructions.jsx';
+import Footer from '../footer/Footer.jsx';
 
 class App extends Component {
    style = {
@@ -35,6 +36,7 @@ class App extends Component {
             <h1 style={ style.title }>{ 'OP1ONLINE' }</h1>
             <Synth />
             <Instructions />
+            <Footer />
          </div>
       );
    }

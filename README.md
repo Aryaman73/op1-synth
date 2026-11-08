@@ -20,6 +20,12 @@ npm run preview  # serve the production build
 - `A W S E D F G Y H U J K O L P ; [ ' Z ] X \ C` – play notes
 - `1`–`4` – toggle Sine / Saw / Triangle / Square oscillators (they stack)
 - `5` / `6` – octave down / up (press again to reset)
+- Knobs (click and drag):
+  - small white – master volume
+  - blue – filter cutoff
+  - green – filter resonance
+  - white – distortion
+  - orange – reverb mix
 
 Click the page or press a key first: browsers keep audio muted until you interact with the page.
 

@@ -21,15 +21,15 @@ export default class Knob extends Component {
       color: '#fff',
    };
 
-   constructor() {
-      super();
+   constructor(props) {
+      super(props);
 
       this.knobRef = React.createRef();
 
+      // The knob owns its value; `value` prop is only the starting position.
       this.state = {
-         rotate: 0,
+         value: props.value,
          mouseDown: false,
-         rotate: 0,
          mouseX: 0,
          mouseY: 0,
          delta: Date.now(),
@@ -93,8 +93,8 @@ export default class Knob extends Component {
       let dT = (Date.now() - this.state.delta) * 0.05;
 
       if (dT > 1) {
-         let { rotate, quad } = this.state,
-            { value, threshold } = this.props,
+         let { value, quad } = this.state,
+            { threshold } = this.props,
             dPosX = e.clientX - this.state.mouseX,
             dPosY = e.clientY - this.state.mouseY,
             dRotate = 0;
@@ -113,23 +113,18 @@ export default class Knob extends Component {
             }
          }
 
-         rotate += dRotate;
-         value += Math.floor(dRotate * 0.5);
-
-         if (value < threshold.min) {
-            value = threshold.min;
-         }
-
-         if (value > threshold.max) {
-            value = threshold.max;
-         }
+         value = Math.min(threshold.max, Math.max(threshold.min, value + dRotate));
 
          this.setState({
-            rotate: rotate,
+            value,
             mouseX: e.clientX,
             mouseY: e.clientY,
             delta: Date.now(),
-         }, this.props.onChange(value));
+         });
+
+         if (value !== this.state.value) {
+            this.props.onChange(value);
+         }
       } else {
          this.setState({
             delta: Date.now(),
@@ -139,6 +134,9 @@ export default class Knob extends Component {
 
    render() {
       const props = this.props,
+         { min, max } = props.threshold,
+         // Map the value onto a 300deg sweep, like a real pot.
+         rotate = (this.state.value - min) / (max - min) * 300 - 150,
          parameter = props.type === 'parameter',
          style = {
             knob: {
@@ -154,8 +152,8 @@ export default class Knob extends Component {
                borderRadius: '50%',
                cursor: this.state.mouseDown ? 'grabbing' : 'grab',
 
-               WebkitTransform: `rotate(${this.state.rotate}deg)`,
-               transform: `rotate(${this.state.rotate}deg)`,
+               WebkitTransform: `rotate(${rotate}deg)`,
+               transform: `rotate(${rotate}deg)`,
             },
             indent: {
                position: 'absolute',

@@ -44,6 +44,7 @@ export default class Parameter extends Component {
             <div style={ style.outer }>
                <Knob
                   color={ this.props.color }
+                  value={ this.props.value }
                   onChange={ this.props.onChange } />
             </div>
          </div>

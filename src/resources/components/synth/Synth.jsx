@@ -12,6 +12,22 @@ import Parameter from '../parameter/Parameter.jsx';
 import SimpleReverb from '../../utils/SimpleReverb.js';
 import { makeDistortionCurve } from '../../utils/Distortion.js';
 
+const KNOB_MAX = 127;
+
+// Starting knob positions (0-127):
+//   volume - master volume
+//   blue   - filter cutoff (fully open)
+//   green  - filter resonance
+//   white  - distortion drive
+//   orange - reverb mix
+const KNOB_DEFAULTS = {
+  volume: 64,
+  blue: 127,
+  green: 0,
+  white: 0,
+  orange: 0,
+};
+
 class Synth extends Component {
   constructor() {
     super();
@@ -25,7 +41,6 @@ class Synth extends Component {
       oscillators: {},
       mousePressed: false,
       masterVolume: {},
-      volume: 50,
     };
 
     this.keyCodes = [
@@ -46,15 +61,75 @@ class Synth extends Component {
 
     const context = new AudioContext();
 
-    let masterVolume = context.createGain();
-    let analyser = context.createAnalyser();
+    // Shared effects chain, built once (voices plug into `voiceMix`):
+    //
+    //   voices -> voiceMix -> filter -> distortion -+-> dry ---------+-> masterVolume -> limiter -> analyser -> out
+    //                                               +-> reverb -> wet +
+    const voiceMix = context.createGain();
+    const filter = context.createBiquadFilter();
+    const distortion = context.createWaveShaper();
+    const dry = context.createGain();
+    const reverb = new SimpleReverb(context, { seconds: 3, decay: 2, reverse: 0 });
+    const wet = context.createGain();
+    const masterVolume = context.createGain();
+    const limiter = context.createDynamicsCompressor();
+    const analyser = context.createAnalyser();
 
-    masterVolume.gain.value = 0.5;
-    masterVolume.connect(analyser);
+    filter.type = 'lowpass';
+    distortion.oversample = '4x';
+
+    // Only catch peaks (resonance + drive can get loud); leave normal levels alone.
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+
+    voiceMix.connect(filter);
+    filter.connect(distortion);
+    distortion.connect(dry);
+    distortion.connect(reverb.input);
+    reverb.connect(wet);
+    dry.connect(masterVolume);
+    wet.connect(masterVolume);
+    masterVolume.connect(limiter);
+    limiter.connect(analyser);
     analyser.connect(context.destination);
 
-    Object.assign(this.state, { context, masterVolume, analyser });
+    this.audio = { voiceMix, filter, distortion, dry, wet, masterVolume };
+
+    Object.assign(this.state, { context, masterVolume, analyser }, KNOB_DEFAULTS);
+
+    Object.keys(KNOB_DEFAULTS).forEach(name => this.applyKnob(name, KNOB_DEFAULTS[name], true));
   }
+
+  // Push a knob value (0-127) into the audio graph.
+  applyKnob = (name, value, immediate = false) => {
+    const { context } = this.state;
+    const { filter, distortion, dry, wet, masterVolume } = this.audio;
+    const t = value / KNOB_MAX;
+    // Short glide avoids zipper noise while dragging.
+    const set = (param, v) => immediate
+      ? (param.value = v)
+      : param.setTargetAtTime(v, context.currentTime, 0.02);
+
+    switch (name) {
+      case 'volume':
+        set(masterVolume.gain, t * 2);
+        break;
+      case 'blue': // filter cutoff, exponential 40 Hz - 20 kHz
+        set(filter.frequency, 40 * Math.pow(500, t));
+        break;
+      case 'green': // filter resonance
+        set(filter.Q, 0.7 + t * 19.3);
+        break;
+      case 'white': // distortion drive (curve is not an AudioParam)
+        distortion.curve = value > 0 ? makeDistortionCurve(t * 400) : null;
+        break;
+      case 'orange': // reverb dry/wet mix
+        set(dry.gain, 1 - t * 0.5);
+        set(wet.gain, t);
+        break;
+    }
+  };
 
   componentDidMount() {
     window.addEventListener('keydown', this.onKeyDown);
@@ -128,19 +203,15 @@ class Synth extends Component {
   };
 
   playSound = (frequency) => {
-    let { context, oscillators, masterVolume, analyser, oscKeys, arrowKey } = this.state,
+    let { context, oscillators, oscKeys, arrowKey } = this.state,
+      { voiceMix } = this.audio,
       octave = 1;
+
+    // Keep stacked oscillators from summing too hot.
+    voiceMix.gain.value = 0.3 / oscKeys.length;
 
     oscKeys.forEach(oscKey => {
       const osc = context.createOscillator();
-      const compressor = context.createDynamicsCompressor();
-      const filter = context.createBiquadFilter();
-      const distortion = context.createWaveShaper();
-      const reverb = new SimpleReverb(context, {
-        seconds: 3,
-        decay: 1,
-        reverse: 0,
-      });
 
       // custom periodic wave
       // const sineTerms = new Float32Array([0, 0, 1, 0, 1]);
@@ -178,47 +249,11 @@ class Synth extends Component {
           break;
       }
 
-      // compressor values
-      // compressor.attack.setValueAtTime(0, context.currentTime + 1000);
-      // compressor.release.setValueAtTime(0, context.currentTime + 1000);
-
-      // oscillator values
       osc.frequency.value = frequency * octave;
       oscillators[frequency * octave * oscKey] = osc;
 
-      // masterVolume values
-      masterVolume.gain.value = 0.3 / oscKeys.length;
-
-      // filter values
-      // filter.type = 'lowpass';
-      // filter.frequency.setValueAtTime(1000, context.currentTime);
-
-      // distortion values
-      // distortion.curve = makeDistortionCurve(400);
-      // distortion.oversample = '4x';
-
-      // normal
-      osc.connect(masterVolume);
-      masterVolume.connect(analyser);
-
-      // with reverb
-      // osc.connect(reverb.input);
-      // reverb.connect(analyser);
-
-      // with distortion
-      // osc.connect(distortion);
-      // distortion.connect(analyser);
-
-      // with compressor and fitler
-      // osc.connect(compressor);
-      // compressor.connect(filter);
-      // filter.connect(masterVolume);
-      // masterVolume.connect(analyser);
-
-      // connect to analyser
-      analyser.connect(context.destination);
-
-      // start the oscillator
+      // Into the shared effects chain (see constructor).
+      osc.connect(voiceMix);
       osc.start(0);
     });
 
@@ -251,6 +286,8 @@ class Synth extends Component {
   };
 
   onKnobChange = (name, value) => {
+    this.applyKnob(name, value);
+
     this.setState({
       [`${name}`]: value,
     });
@@ -338,8 +375,7 @@ class Synth extends Component {
           height: 186,
           float: 'left',
         },
-      },
-      { diameter, blue, green, white, orange } = this.state;
+      };
 
     return (
       <div style={ style.synth }>
@@ -360,10 +396,10 @@ class Synth extends Component {
             analyser={this.state.analyser}
           />
 
-          <Parameter color={ '#62B8F3' } onChange={ this.onKnobChange.bind(this, 'blue')} />
-          <Parameter color={ '#01BB00' } onChange={ this.onKnobChange.bind(this, 'green')} />
-          <Parameter color={ '#FFFFFF' } onChange={ this.onKnobChange.bind(this, 'white')} />
-          <Parameter color={ '#F85105' } onChange={ this.onKnobChange.bind(this, 'orange')} />
+          <Parameter color={ '#62B8F3' } value={ this.state.blue } onChange={ this.onKnobChange.bind(this, 'blue')} />
+          <Parameter color={ '#01BB00' } value={ this.state.green } onChange={ this.onKnobChange.bind(this, 'green')} />
+          <Parameter color={ '#FFFFFF' } value={ this.state.white } onChange={ this.onKnobChange.bind(this, 'white')} />
+          <Parameter color={ '#F85105' } value={ this.state.orange } onChange={ this.onKnobChange.bind(this, 'orange')} />
 
           <div style={ style.rectGroup }>
             <Button borderRight={ false }/>

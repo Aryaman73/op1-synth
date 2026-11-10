@@ -11,6 +11,7 @@ import Keyboard from '../keyboard/Keyboard.jsx';
 import Parameter from '../parameter/Parameter.jsx';
 import SimpleReverb from '../../utils/SimpleReverb.js';
 import { makeDistortionCurve } from '../../utils/Distortion.js';
+import { KNOBS } from '../../utils/knobs.js';
 
 const KNOB_MAX = 127;
 
@@ -38,6 +39,8 @@ const KNOB_PAGES = {
 const KNOB_COLORS = ['#62B8F3', '#01BB00', '#FFFFFF', '#F85105'];
 
 const SHIFT_KEY = 16;
+
+const READOUT_MS = 1200;
 
 class Synth extends Component {
   constructor() {
@@ -118,7 +121,11 @@ class Synth extends Component {
       analyser,
       shiftHeld: false,    // Shift key on the computer keyboard
       shiftLatched: false, // on-screen Shift button, toggled by click/tap
+      readout: null,       // what the display is showing over the waveform
+      readoutVisible: false,
     }, KNOB_DEFAULTS);
+
+    this.lastShifted = false;
 
     Object.keys(KNOB_DEFAULTS).forEach(name => this.applyKnob(name, KNOB_DEFAULTS[name], true));
   }
@@ -128,41 +135,65 @@ class Synth extends Component {
     const { context } = this.state;
     const { filter, distortion, dry, wet, masterVolume } = this.audio;
     const t = value / KNOB_MAX;
+    const v = KNOBS[name].map(t); // ranges live in utils/knobs.js
     // Short glide avoids zipper noise while dragging.
-    const set = (param, v) => immediate
-      ? (param.value = v)
-      : param.setTargetAtTime(v, context.currentTime, 0.02);
+    const set = (param, x) => immediate
+      ? (param.value = x)
+      : param.setTargetAtTime(x, context.currentTime, 0.02);
 
     switch (name) {
       case 'volume':
-        set(masterVolume.gain, t * 2);
+        set(masterVolume.gain, v);
         break;
-      case 'blue': // filter cutoff, exponential 40 Hz - 20 kHz
-        set(filter.frequency, 40 * Math.pow(500, t));
+      case 'blue': // filter cutoff
+        set(filter.frequency, v);
         break;
       case 'green': // filter resonance
-        set(filter.Q, 0.7 + t * 19.3);
+        set(filter.Q, v);
         break;
       case 'white': // distortion drive (curve is not an AudioParam)
-        distortion.curve = value > 0 ? makeDistortionCurve(t * 400) : null;
+        distortion.curve = value > 0 ? makeDistortionCurve(v) : null;
         break;
       case 'orange': // reverb dry/wet mix
-        set(dry.gain, 1 - t * 0.5);
-        set(wet.gain, t);
+        set(dry.gain, 1 - v * 0.5);
+        set(wet.gain, v);
         break;
-      // Envelope: exponential time ranges, read when a note starts/ends.
-      case 'attack':  // 2 ms - 2 s
-        this.envelope.attack = 0.002 * Math.pow(1000, t);
+      // Envelope settings are read when a note starts/ends.
+      default:
+        this.envelope[name] = v;
         break;
-      case 'decay':   // 10 ms - 2 s
-        this.envelope.decay = 0.01 * Math.pow(200, t);
-        break;
-      case 'sustain': // 0 - 100% of the note's level
-        this.envelope.sustain = t;
-        break;
-      case 'release': // 10 ms - 3 s
-        this.envelope.release = 0.01 * Math.pow(300, t);
-        break;
+    }
+  };
+
+  // Briefly show a setting on the display, like the OP-1 does while turning.
+  showReadout = (readout) => {
+    clearTimeout(this.readoutTimer);
+    this.setState({ readout, readoutVisible: true });
+    this.readoutTimer = setTimeout(() => this.setState({ readoutVisible: false }), READOUT_MS);
+  };
+
+  showKnobReadout = (name, value) => {
+    const knob = KNOBS[name];
+
+    this.showReadout({
+      label: knob.label,
+      text: knob.format(knob.map(value / KNOB_MAX)),
+      position: value / KNOB_MAX,
+      color: knob.color,
+    });
+  };
+
+  // Announce the knob page when Shift changes it.
+  showPageIfChanged = () => {
+    const shifted = this.isShifted();
+
+    if (shifted !== this.lastShifted) {
+      this.lastShifted = shifted;
+      this.showReadout({
+        label: 'KNOBS',
+        text: shifted ? 'ENVELOPE' : 'SOUND',
+        color: '#DEE8E9',
+      });
     }
   };
 
@@ -176,6 +207,7 @@ class Synth extends Component {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('blur', this.releaseAll);
+    clearTimeout(this.readoutTimer);
   }
 
   // Browsers start the AudioContext suspended until a user gesture.
@@ -205,6 +237,14 @@ class Synth extends Component {
       }
 
       return { arrowKey: state.arrowKey === 0 ? arrowKey : 0 };
+    }, () => {
+      const { arrowKey } = this.state;
+
+      this.showReadout({
+        label: 'OCTAVE',
+        text: arrowKey === 53 ? '-1' : arrowKey === 54 ? '+1' : '0',
+        color: '#DEE8E9',
+      });
     });
   };
 
@@ -221,7 +261,7 @@ class Synth extends Component {
 
   onKeyDown = (e) => {
     if (e.keyCode === SHIFT_KEY) {
-      this.setState({ shiftHeld: true });
+      this.setState({ shiftHeld: true }, this.showPageIfChanged);
       return;
     }
 
@@ -246,7 +286,7 @@ class Synth extends Component {
 
   onKeyUp = (e) => {
     if (e.keyCode === SHIFT_KEY) {
-      this.setState({ shiftHeld: false });
+      this.setState({ shiftHeld: false }, this.showPageIfChanged);
       return;
     }
 
@@ -280,13 +320,13 @@ class Synth extends Component {
   // pointerup elsewhere would never reach us and the note would drone).
   releaseAll = () => {
     Object.keys(this.voices).forEach(index => this.noteOff(Number(index)));
-    this.setState({ shiftHeld: false });
+    this.setState({ shiftHeld: false }, this.showPageIfChanged);
   };
 
   isShifted = () => this.state.shiftHeld || this.state.shiftLatched;
 
   toggleShiftLatch = () => {
-    this.setState(({ shiftLatched }) => ({ shiftLatched: !shiftLatched }));
+    this.setState(({ shiftLatched }) => ({ shiftLatched: !shiftLatched }), this.showPageIfChanged);
   };
 
   // Start one oscillator per active waveform for piano key `index`. The
@@ -379,6 +419,7 @@ class Synth extends Component {
 
   onKnobChange = (name, value) => {
     this.applyKnob(name, value);
+    this.showKnobReadout(name, value);
 
     this.setState({
       [`${name}`]: value,
@@ -488,6 +529,8 @@ class Synth extends Component {
           <Display
             oscKeys={ this.state.oscKeys }
             analyser={this.state.analyser}
+            readout={ this.state.readout }
+            readoutVisible={ this.state.readoutVisible }
           />
 
           { knobNames.map((name, i) => (

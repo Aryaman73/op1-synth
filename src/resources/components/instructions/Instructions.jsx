@@ -116,7 +116,7 @@ export default class Instructions extends Component {
                 <span style={ style.note }>{ ` — ${k.note}` }</span>
               </li>
             )) }
-            <li style={ style.note }>Drag to turn.</li>
+            <li style={ style.note }>Drag to turn; the screen shows the value as you go.</li>
             <li style={ { marginTop: 8 } }>
               Hold { this.renderKeys(['Shift']) } or tap the Shift button for the envelope page:
               how each note fades in and out.

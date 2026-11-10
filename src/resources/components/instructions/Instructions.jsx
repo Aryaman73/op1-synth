@@ -11,6 +11,13 @@ const knobs = [
   { color: '#F85105', name: 'Reverb', note: 'how much room sound is mixed in' },
 ];
 
+const envelopeKnobs = [
+  { color: '#62B8F3', name: 'Attack', note: 'fade-in time' },
+  { color: '#01BB00', name: 'Decay', note: 'time to fall to the sustain level' },
+  { color: '#FFFFFF', name: 'Sustain', note: 'level while the key is held' },
+  { color: '#F85105', name: 'Release', note: 'fade-out after you let go' },
+];
+
 export default class Instructions extends Component {
   style = {
     wrapper: {
@@ -110,6 +117,17 @@ export default class Instructions extends Component {
               </li>
             )) }
             <li style={ style.note }>Drag to turn.</li>
+            <li style={ { marginTop: 8 } }>
+              Hold { this.renderKeys(['Shift']) } or tap the Shift button for the envelope page:
+              how each note fades in and out.
+            </li>
+            { envelopeKnobs.map(k => (
+              <li key={ k.name }>
+                <span style={ { ...style.dot, backgroundColor: k.color } } />
+                <span style={ style.name }>{ k.name }</span>
+                <span style={ style.note }>{ ` — ${k.note}` }</span>
+              </li>
+            )) }
           </ul>
         </div>
       </div>

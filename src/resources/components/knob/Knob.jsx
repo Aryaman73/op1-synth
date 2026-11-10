@@ -26,9 +26,9 @@ export default class Knob extends Component {
 
       this.knobRef = React.createRef();
 
-      // The knob owns its value; `value` prop is only the starting position.
+      // Controlled: the parent owns the value (the same knob shows different
+      // settings on different pages) and the knob reports changes via onChange.
       this.state = {
-         value: props.value,
          mouseDown: false,
          mouseX: 0,
          mouseY: 0,
@@ -50,6 +50,9 @@ export default class Knob extends Component {
 
    onMouseDown = (e) => {
       e.preventDefault(); // no text selection / touch scrolling while turning
+      // Track the value locally while dragging; the parent's re-render with
+      // the new prop can lag behind fast pointer moves.
+      this.dragValue = this.props.value;
       let knob = this.knobRef.current,
          knobRect = knob.getBoundingClientRect(),
          originX = knobRect.left + 21,
@@ -96,7 +99,8 @@ export default class Knob extends Component {
       let dT = (Date.now() - this.state.delta) * 0.05;
 
       if (dT > 1) {
-         let { value, quad } = this.state,
+         let { quad } = this.state,
+            value = this.dragValue,
             { threshold } = this.props,
             dPosX = e.clientX - this.state.mouseX,
             dPosY = e.clientY - this.state.mouseY,
@@ -118,14 +122,16 @@ export default class Knob extends Component {
 
          value = Math.min(threshold.max, Math.max(threshold.min, value + dRotate));
 
+         const changed = value !== this.dragValue;
+         this.dragValue = value;
+
          this.setState({
-            value,
             mouseX: e.clientX,
             mouseY: e.clientY,
             delta: Date.now(),
          });
 
-         if (value !== this.state.value) {
+         if (changed) {
             this.props.onChange(value);
          }
       } else {
@@ -139,7 +145,7 @@ export default class Knob extends Component {
       const props = this.props,
          { min, max } = props.threshold,
          // Map the value onto a 300deg sweep, like a real pot.
-         rotate = (this.state.value - min) / (max - min) * 300 - 150,
+         rotate = (props.value - min) / (max - min) * 300 - 150,
          parameter = props.type === 'parameter',
          style = {
             knob: {

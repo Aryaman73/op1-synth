@@ -14,19 +14,30 @@ import { makeDistortionCurve } from '../../utils/Distortion.js';
 
 const KNOB_MAX = 127;
 
-// Starting knob positions (0-127):
-//   volume - master volume
-//   blue   - filter cutoff (fully open)
-//   green  - filter resonance
-//   white  - distortion drive
-//   orange - reverb mix
+// Starting knob positions (0-127).
 const KNOB_DEFAULTS = {
-  volume: 64,
-  blue: 127,
-  green: 0,
-  white: 0,
-  orange: 0,
+  volume: 64,   // master volume
+  // Sound page
+  blue: 127,    // filter cutoff (fully open)
+  green: 0,     // filter resonance
+  white: 0,     // distortion drive
+  orange: 0,    // reverb mix
+  // Envelope page (hold or tap Shift)
+  attack: 0,    // 2 ms: just enough to avoid a click
+  decay: 64,    // ~140 ms
+  sustain: 127, // full level while held
+  release: 60,  // ~150 ms
 };
+
+// Which setting each coloured knob controls on each page.
+const KNOB_PAGES = {
+  sound: ['blue', 'green', 'white', 'orange'],
+  envelope: ['attack', 'decay', 'sustain', 'release'],
+};
+
+const KNOB_COLORS = ['#62B8F3', '#01BB00', '#FFFFFF', '#F85105'];
+
+const SHIFT_KEY = 16;
 
 class Synth extends Component {
   constructor() {
@@ -56,6 +67,9 @@ class Synth extends Component {
 
     // Sounding notes, keyed by piano key index: { oscillators, noteGain }.
     this.voices = {};
+
+    // Envelope times in seconds (sustain is a 0-1 level); set from the knobs.
+    this.envelope = {};
 
     // Audio graph is built up front so children (e.g. Display) get the
     // analyser on their first render.
@@ -98,7 +112,13 @@ class Synth extends Component {
 
     this.audio = { voiceMix, filter, distortion, dry, wet, masterVolume };
 
-    Object.assign(this.state, { context, masterVolume, analyser }, KNOB_DEFAULTS);
+    Object.assign(this.state, {
+      context,
+      masterVolume,
+      analyser,
+      shiftHeld: false,    // Shift key on the computer keyboard
+      shiftLatched: false, // on-screen Shift button, toggled by click/tap
+    }, KNOB_DEFAULTS);
 
     Object.keys(KNOB_DEFAULTS).forEach(name => this.applyKnob(name, KNOB_DEFAULTS[name], true));
   }
@@ -129,6 +149,19 @@ class Synth extends Component {
       case 'orange': // reverb dry/wet mix
         set(dry.gain, 1 - t * 0.5);
         set(wet.gain, t);
+        break;
+      // Envelope: exponential time ranges, read when a note starts/ends.
+      case 'attack':  // 2 ms - 2 s
+        this.envelope.attack = 0.002 * Math.pow(1000, t);
+        break;
+      case 'decay':   // 10 ms - 2 s
+        this.envelope.decay = 0.01 * Math.pow(200, t);
+        break;
+      case 'sustain': // 0 - 100% of the note's level
+        this.envelope.sustain = t;
+        break;
+      case 'release': // 10 ms - 3 s
+        this.envelope.release = 0.01 * Math.pow(300, t);
         break;
     }
   };
@@ -187,6 +220,11 @@ class Synth extends Component {
   };
 
   onKeyDown = (e) => {
+    if (e.keyCode === SHIFT_KEY) {
+      this.setState({ shiftHeld: true });
+      return;
+    }
+
     const index = this.keyCodes.indexOf(e.keyCode),
       oscIndex = this.oscCodes.indexOf(e.keyCode),
       arrowIndex = this.arrowCodes.indexOf(e.keyCode);
@@ -207,6 +245,11 @@ class Synth extends Component {
   };
 
   onKeyUp = (e) => {
+    if (e.keyCode === SHIFT_KEY) {
+      this.setState({ shiftHeld: false });
+      return;
+    }
+
     const index = this.keyCodes.indexOf(e.keyCode);
 
     if (index > -1) {
@@ -237,6 +280,13 @@ class Synth extends Component {
   // pointerup elsewhere would never reach us and the note would drone).
   releaseAll = () => {
     Object.keys(this.voices).forEach(index => this.noteOff(Number(index)));
+    this.setState({ shiftHeld: false });
+  };
+
+  isShifted = () => this.state.shiftHeld || this.state.shiftLatched;
+
+  toggleShiftLatch = () => {
+    this.setState(({ shiftLatched }) => ({ shiftLatched: !shiftLatched }));
   };
 
   // Start one oscillator per active waveform for piano key `index`. The
@@ -251,7 +301,14 @@ class Synth extends Component {
     // Per-note level, so stacking oscillators doesn't sum too hot and
     // later setting changes don't alter notes already sounding.
     const noteGain = context.createGain();
-    noteGain.gain.value = 0.3 / oscKeys.length;
+    const level = 0.3 / oscKeys.length;
+    const { attack, decay, sustain } = this.envelope;
+    const now = context.currentTime;
+
+    // Attack up to the note's level, then decay towards the sustain level.
+    noteGain.gain.setValueAtTime(0, now);
+    noteGain.gain.linearRampToValueAtTime(level, now + attack);
+    noteGain.gain.setTargetAtTime(level * sustain, now + attack, decay / 3);
     noteGain.connect(voiceMix);
 
     const oscillators = oscKeys.map(oscKey => {
@@ -295,8 +352,24 @@ class Synth extends Component {
       return;
     }
 
-    voice.oscillators.forEach(osc => osc.stop());
-    voice.noteGain.disconnect();
+    const { context } = this.state;
+    const { gain } = voice.noteGain;
+    const { release } = this.envelope;
+    const now = context.currentTime;
+
+    // Fade from wherever the envelope is now (mid-attack, decaying or
+    // sustaining) down to silence, then stop. Pin the current level and ramp
+    // from it. (Not cancelAndHoldAtTime: in Chrome, a ramp after it drops
+    // straight to silence, and Firefox doesn't have it.)
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(gain.value, now);
+    gain.linearRampToValueAtTime(0, now + release);
+
+    voice.oscillators.forEach(osc => osc.stop(now + release + 0.01));
+    voice.oscillators[0].onended = () => voice.noteGain.disconnect();
+
+    // The key is free again straight away: pressing it during the release
+    // starts a new note while this one fades out.
     delete this.voices[index];
   };
 
@@ -396,6 +469,8 @@ class Synth extends Component {
         },
       };
 
+    const knobNames = KNOB_PAGES[this.isShifted() ? 'envelope' : 'sound'];
+
     return (
       <div style={ style.synth }>
         <div style={ style.modules }>
@@ -415,10 +490,14 @@ class Synth extends Component {
             analyser={this.state.analyser}
           />
 
-          <Parameter color={ '#62B8F3' } value={ this.state.blue } onChange={ this.onKnobChange.bind(this, 'blue')} />
-          <Parameter color={ '#01BB00' } value={ this.state.green } onChange={ this.onKnobChange.bind(this, 'green')} />
-          <Parameter color={ '#FFFFFF' } value={ this.state.white } onChange={ this.onKnobChange.bind(this, 'white')} />
-          <Parameter color={ '#F85105' } value={ this.state.orange } onChange={ this.onKnobChange.bind(this, 'orange')} />
+          { knobNames.map((name, i) => (
+            <Parameter
+              key={ i }
+              color={ KNOB_COLORS[i] }
+              value={ this.state[name] }
+              onChange={ value => this.onKnobChange(name, value) }
+            />
+          )) }
 
           <div style={ style.rectGroup }>
             <Button borderRight={ false }/>
@@ -440,7 +519,11 @@ class Synth extends Component {
             <Button />
             <Button borderBottom={ false } />
             <Button borderBottom={ false } />
-            <Button borderBottom={ false }>
+            <Button
+              borderBottom={ false }
+              isPressed={ this.isShifted() }
+              onClick={ this.toggleShiftLatch }
+            >
               <div style={ style.text }>{ 'Shift' }</div>
             </Button>
           </div>

@@ -173,6 +173,67 @@ export default class Display extends Component {
   //   requestAnimationFrame(() => { this.update() });
   // }
 
+  // A setting being changed (knob, octave, Shift page), shown over the
+  // waveform and faded out by Synth after a moment.
+  renderReadout = () => {
+    const { readout, readoutVisible } = this.props;
+
+    if (!readout) {
+      return null;
+    }
+
+    const hasBar = typeof readout.position === 'number';
+
+    const style = {
+      overlay: {
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        backgroundColor: 'rgba(0, 0, 0, 0.82)',
+        color: readout.color,
+        fontFamily: '\'Bungee Hairline\', cursive',
+        opacity: readoutVisible ? 1 : 0,
+        transition: readoutVisible ? 'opacity 60ms' : 'opacity 300ms',
+        pointerEvents: 'none',
+        userSelect: 'none',
+      },
+      label: {
+        fontSize: '0.8em',
+        letterSpacing: '0.25em',
+        opacity: 0.8,
+      },
+      text: {
+        fontSize: '1.9em',
+        lineHeight: 1.1,
+      },
+      track: {
+        width: 150,
+        height: 3,
+        marginTop: 6,
+        backgroundColor: 'rgba(255, 255, 255, 0.15)',
+      },
+      fill: {
+        width: `${(hasBar ? readout.position : 0) * 100}%`,
+        height: '100%',
+        backgroundColor: readout.color,
+      },
+    };
+
+    return (
+      <div style={ style.overlay }>
+        <div style={ style.label }>{ readout.label }</div>
+        <div style={ style.text }>{ readout.text }</div>
+        { hasBar && (
+          <div style={ style.track }><div style={ style.fill } /></div>
+        ) }
+      </div>
+    );
+  };
+
   render() {
     const style = this.style;
 
@@ -180,6 +241,7 @@ export default class Display extends Component {
      <div style={ style.wrapper }>
       { this.renderLabel() }
       <canvas ref={ref => this.canvas = ref} width={WIDTH} height={HEIGHT} />
+      { this.renderReadout() }
      </div>
     );
   }
@@ -187,4 +249,11 @@ export default class Display extends Component {
 
 Display.propTypes = {
   oscKey: PropTypes.number,
+  readout: PropTypes.shape({
+    label: PropTypes.string,
+    text: PropTypes.string,
+    position: PropTypes.number, // 0-1, draws a bar when present
+    color: PropTypes.string,
+  }),
+  readoutVisible: PropTypes.bool,
 };

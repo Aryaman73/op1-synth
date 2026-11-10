@@ -64,9 +64,7 @@ export default class Key extends Component {
       return (
         <div
           style={ style.wrapper }
-          onMouseDown={ this.onMouseDown }
-          onMouseEnter={ this.onMouseEnter }
-          onMouseLeave={ this.onMouseLeave }
+          data-key-index={ props.id }
         >
           <div style={ style.button }>
             {props.letter}

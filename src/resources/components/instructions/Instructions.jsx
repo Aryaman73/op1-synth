@@ -14,19 +14,20 @@ const knobs = [
 export default class Instructions extends Component {
   style = {
     wrapper: {
-      width: 1133, // matches the synth body
+      maxWidth: 1133, // matches the synth body
       margin: '28px auto 40px',
       padding: '0 15px',
       boxSizing: 'border-box',
       display: 'flex',
-      gap: 56,
+      flexWrap: 'wrap', // columns stack on narrow screens
+      gap: '20px 56px',
       fontFamily: '\'Quicksand\', sans-serif',
       fontSize: '0.85rem',
       lineHeight: 1.7,
       color: GREY,
     },
     column: {
-      flex: 1,
+      flex: '1 1 240px',
     },
     heading: {
       margin: '0 0 6px',
@@ -83,8 +84,9 @@ export default class Instructions extends Component {
         <div style={ style.column }>
           <h2 style={ style.heading }>{ 'PLAY' }</h2>
           <ul style={ style.list }>
-            <li>Your computer keyboard is the piano: <span style={ style.name }>A S D F G H J K L</span> are white keys, the row above (<span style={ style.name }>W E R Y U O P</span>) are black keys.</li>
-            <li style={ style.note }>Press a key or click the page first. Browsers keep audio muted until you do.</li>
+            <li>Click or tap the keys. Slide across them, or use several fingers at once.</li>
+            <li>Or play from your computer keyboard: <span style={ style.name }>A S D F G H J K L</span> are white keys, the row above (<span style={ style.name }>W E R Y U O P</span>) are black keys.</li>
+            <li style={ style.note }>Browsers keep audio muted until you press, click or tap something.</li>
           </ul>
         </div>
 
@@ -107,7 +109,7 @@ export default class Instructions extends Component {
                 <span style={ style.note }>{ ` — ${k.note}` }</span>
               </li>
             )) }
-            <li style={ style.note }>Click and drag to turn.</li>
+            <li style={ style.note }>Drag to turn.</li>
           </ul>
         </div>
       </div>

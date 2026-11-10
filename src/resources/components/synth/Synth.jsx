@@ -136,11 +136,13 @@ class Synth extends Component {
   componentDidMount() {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
+    window.addEventListener('blur', this.releaseAll);
   }
 
   componentWillUnmount() {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
+    window.removeEventListener('blur', this.releaseAll);
   }
 
   // Browsers start the AudioContext suspended until a user gesture.
@@ -191,12 +193,8 @@ class Synth extends Component {
 
     this.resumeAudio();
 
-    if (index > -1 && !this.props.keys.getIn([index.toString(), 'isPressed'])) {
-      this.playSound(index, this.props.keys.getIn([index.toString(), 'freq']));
-
-      this.props.dispatch(
-        keyboardActions.keyDown(index.toString())
-      );
+    if (index > -1) {
+      this.noteOn(index);
     }
 
     if (oscIndex > -1) {
@@ -212,12 +210,33 @@ class Synth extends Component {
     const index = this.keyCodes.indexOf(e.keyCode);
 
     if (index > -1) {
-      this.stopSound(index);
-
-      this.props.dispatch(
-        keyboardActions.keyUp(index.toString())
-      );
+      this.noteOff(index);
     }
+  };
+
+  // Shared by the computer keyboard and mouse/touch on the on-screen keys.
+  noteOn = (index) => {
+    const id = index.toString();
+
+    this.resumeAudio();
+
+    if (this.props.keys.getIn([id, 'isPressed'])) {
+      return;
+    }
+
+    this.playSound(index, this.props.keys.getIn([id, 'freq']));
+    this.props.dispatch(keyboardActions.keyDown(id));
+  };
+
+  noteOff = (index) => {
+    this.stopSound(index);
+    this.props.dispatch(keyboardActions.keyUp(index.toString()));
+  };
+
+  // Release everything if the page loses focus mid-note (a keyup or
+  // pointerup elsewhere would never reach us and the note would drone).
+  releaseAll = () => {
+    Object.keys(this.voices).forEach(index => this.noteOff(Number(index)));
   };
 
   // Start one oscillator per active waveform for piano key `index`. The
@@ -426,7 +445,11 @@ class Synth extends Component {
             </Button>
           </div>
 
-          <Keyboard keys={ this.props.keys } />
+          <Keyboard
+            keys={ this.props.keys }
+            onNoteOn={ this.noteOn }
+            onNoteOff={ this.noteOff }
+          />
         </div>
         <div style={ style.model }>
           { 'OP-1' }

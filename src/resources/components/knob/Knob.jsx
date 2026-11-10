@@ -37,16 +37,19 @@ export default class Knob extends Component {
    }
 
    componentDidMount() {
-      window.addEventListener('mouseup', this.onMouseUp);
-      window.addEventListener('mousemove', this.onMouseMove);
+      window.addEventListener('pointerup', this.onMouseUp);
+      window.addEventListener('pointercancel', this.onMouseUp);
+      window.addEventListener('pointermove', this.onMouseMove);
    }
 
    componentWillUnmount() {
-      window.removeEventListener('mouseup', this.onMouseUp);
-      window.removeEventListener('mousemove', this.onMouseMove);
+      window.removeEventListener('pointerup', this.onMouseUp);
+      window.removeEventListener('pointercancel', this.onMouseUp);
+      window.removeEventListener('pointermove', this.onMouseMove);
    }
 
    onMouseDown = (e) => {
+      e.preventDefault(); // no text selection / touch scrolling while turning
       let knob = this.knobRef.current,
          knobRect = knob.getBoundingClientRect(),
          originX = knobRect.left + 21,
@@ -151,6 +154,7 @@ export default class Knob extends Component {
                WebkitBorderRadius: '50%',
                borderRadius: '50%',
                cursor: this.state.mouseDown ? 'grabbing' : 'grab',
+               touchAction: 'none',
 
                WebkitTransform: `rotate(${rotate}deg)`,
                transform: `rotate(${rotate}deg)`,
@@ -172,7 +176,7 @@ export default class Knob extends Component {
          <div
             ref={ this.knobRef }
             style={ style.knob }
-            onMouseDown={ this.onMouseDown }>
+            onPointerDown={ this.onMouseDown }>
             <div style={ style.indent }></div>
          </div>
       );

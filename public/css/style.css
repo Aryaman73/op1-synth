@@ -6,7 +6,10 @@ body {
    margin: 0;
    padding: 0;
    font-family: 'Noto Sans', sans-serif;
-   background-color: #edeff0;
+   background-color: #000;
+   /* No double-tap zoom or grey tap flash when playing by touch. */
+   touch-action: manipulation;
+   -webkit-tap-highlight-color: transparent;
 }
 
 .active {

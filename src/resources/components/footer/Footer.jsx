@@ -5,7 +5,7 @@ const DIM = '#4A4E4E';
 export default class Footer extends Component {
   style = {
     wrapper: {
-      width: 1133, // matches the synth body
+      maxWidth: 1133, // matches the synth body
       margin: '0 auto',
       padding: '16px 15px 32px',
       boxSizing: 'border-box',
